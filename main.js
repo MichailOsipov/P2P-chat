@@ -35,7 +35,7 @@ class User {
                 clearInterval(this.intervalId);
             }
 
-            usersToSend = usersToSend.filter(userName => this.sendMessage(this.userName, userName, message));
+            usersToSend = usersToSend.filter(userName => !this.sendMessage(this.userName, userName, message));
         }, INTERVAL);
     }
 
@@ -43,9 +43,16 @@ class User {
         if (message.type === 'needToSend') {
             if (message.to === this.userName) {
                 this.showSystemMessage(`from: ${this.userName}: i got message`);
+                const newMessage = {
+                    type: 'stopSending'
+                };
+                this.broadCast(newMessage);
             } else {
                 this.broadCast(message);
             }
+        } else if (message.type === 'stopSending') {
+            clearInterval(this.intervalId);
+            this.broadCast(message);
         }
     }
 }
@@ -68,7 +75,7 @@ class ChatSystem {
             const [userName, neighboors] = userConfig.split(':');
             this.users.push(new User({
                 userName,
-                neighboors: neighboors.split(','),
+                neighboors: neighboors && neighboors.split(','),
                 sendMessage: this.sendMessage,
                 showSystemMessage: this.showSystemMessage,
                 disabled: false

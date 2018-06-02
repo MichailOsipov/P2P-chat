@@ -2,13 +2,14 @@ const initialChatConfig = '1:2,3;2:1,6;3:1,4,5,6;4:3;5:3;6:2,3';
 const initialChatCommand = 'send:1-3:hello';
 const INTERVAL = 1000;
 
+let messageId = 0;
 chatInitTextarea.value = initialChatConfig;
 currentCommandTextarea.value = initialChatCommand;
 
 class User {
     constructor({userName, neighboors, sendMessage, disabled, showSystemMessage}) {
         this.userName = userName;
-        this.neighboors = neighboors;
+        this.neighboors = neighboors || [];
         this.disabled = disabled;
         this.sendMessage = sendMessage;
         this.showSystemMessage = showSystemMessage;
@@ -16,6 +17,7 @@ class User {
         this.broadCast = this.broadCast.bind(this);
         this.getMessage = this.getMessage.bind(this);
         this.initSending = this.initSending.bind(this);
+        this.messageDescriptors = [];
     }
 
     initSending(from, to, messageStr) {
@@ -23,16 +25,20 @@ class User {
             type: 'needToSend',
             message: messageStr,
             from,
-            to
+            to,
+            messageId
         };
+        this.messageDescriptors[messageId] = {};
+        this.messageDescriptors[messageId].alreadyBroadcasting = true;
+        messageId++;
         this.broadCast(message);
     }
 
     broadCast(message) {
         let usersToSend = [...this.neighboors];
-        this.intervalId = setInterval(() => {
+        this.messageDescriptors[message.messageId].id = setInterval(() => {
             if (usersToSend === []) {
-                clearInterval(this.intervalId);
+                clearInterval(this.messageDescriptors[message.messageId].id);
             }
 
             usersToSend = usersToSend.filter(userName => !this.sendMessage(this.userName, userName, message));
@@ -44,15 +50,25 @@ class User {
             if (message.to === this.userName) {
                 this.showSystemMessage(`from: ${this.userName}: i got message`);
                 const newMessage = {
-                    type: 'stopSending'
+                    type: 'stopSending',
+                    messageId: message.messageId
                 };
+                this.messageDescriptors[message.messageId] = {};
+                this.messageDescriptors[message.messageId].alreadyStopping = true;
                 this.broadCast(newMessage);
-            } else {
+            } else if (!(this.messageDescriptors[message.messageId] && this.messageDescriptors[message.messageId].alreadyBroadcasting)) {
+                this.messageDescriptors[message.messageId] = {};
+                this.messageDescriptors[message.messageId].alreadyBroadcasting = true;
                 this.broadCast(message);
             }
         } else if (message.type === 'stopSending') {
-            clearInterval(this.intervalId);
-            this.broadCast(message);
+            if (! (this.messageDescriptors[message.messageId] && this.messageDescriptors[message.messageId].alreadyStopping)) {
+                if (this.messageDescriptors[message.messageId]) {
+                    clearInterval(this.messageDescriptors[message.messageId].id);
+                    this.messageDescriptors[message.messageId].alreadyStopping = true;
+                    this.broadCast(message);
+                }
+            }
         }
     }
 }
@@ -91,6 +107,7 @@ class ChatSystem {
             return true;
         }
 
+        this.showSystemMessage(`trying to send from: ${from} to: ${receiver} <type: ${message.type} from: ${message.from} to: ${message.to} message: ${message.message}>`);
         return false;
     }
 
